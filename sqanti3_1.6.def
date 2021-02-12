@@ -1,0 +1,117 @@
+Bootstrap: docker
+From: continuumio/miniconda3
+Stage: build
+
+%environment
+    export LC_ALL=C
+    export APPNAME=SQANTI3
+    export APPS_HOME=/apps
+    export ENV_PREFIX=/env/$APPNAME
+    export CONDA_DIR=/opt/conda
+
+%post
+    export APPNAME=SQANTI3
+    export APPS_HOME=/apps
+    export ENV_PREFIX=/env/$APPNAME
+    BUILD_DATE=`date`
+
+    echo "export BUILD_DATE=\"${BUILD_DATE}\"" >> $SINGULARITY_ENVIRONMENT
+
+    mkdir $APPS_HOME
+    cd $APPS_HOME
+    git clone https://github.com/ConesaLab/SQANTI3.git
+    cd $APPS_HOME/$APPNAME
+    git checkout 806893d5ef8d26c6177fe3f34a1ad7c25724bf20
+    conda update -y --name base --channel defaults conda
+    conda env create --prefix $ENV_PREFIX --file $APPS_HOME/$APPNAME/$APPNAME.conda_env.yml --force
+    conda clean --all --yes 
+
+    wget http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/gtfToGenePred -P $APPS_HOME/$APPNAME/utilities/
+    chmod +x $APPS_HOME/$APPNAME/utilities/gtfToGenePred
+
+    bash -c "
+    source $CONDA_DIR/etc/profile.d/conda.sh && \
+    conda activate /env/$APPNAME && \
+    git clone https://github.com/Magdoll/cDNA_Cupcake.git && \
+    cd cDNA_Cupcake && \
+    git checkout 6cefd4769318712478b0c5adacceae167d19776c && \
+    python setup.py build  && \
+    python setup.py install && \
+    conda deactivate"
+
+    # Make python scripts executable
+    # sqanti3_RulesFilter.py lacks a shebang. add it here for now, but remove
+    # this if that gets fixed in the future.
+    sed -i '1s/^/#!\/usr\/bin\/env python\n/' $APPS_HOME/$APPNAME/sqanti3_RulesFilter.py
+    chmod +x $APPS_HOME/$APPNAME/sqanti3_qc.py
+    chmod +x $APPS_HOME/$APPNAME/sqanti3_RulesFilter.py
+
+    # Make wrapper for sqanti3_qc.py
+    # needs to SQANTI3 conda env and export path to cDNA cupcake
+    TOOLNAME=sqanti3_qc.py
+    echo '#!/bin/bash' > /usr/local/bin/$TOOLNAME
+    echo "source $CONDA_DIR/etc/profile.d/conda.sh" >> /usr/local/bin/$TOOLNAME
+    echo "conda activate /env/$APPNAME" >> /usr/local/bin/$TOOLNAME
+    echo "export PYTHONPATH=$PYTHONPATH:$APPS_HOME/$APPNAME/cDNA_Cupcake/sequence/" >> /usr/local/bin/$TOOLNAME
+    echo "$APPS_HOME/$APPNAME/$TOOLNAME \"\$@\"" >> /usr/local/bin/$TOOLNAME
+    chmod 755 /usr/local/bin/$TOOLNAME
+
+    # Make wrapper for sqanti3_RulesFilter.py
+    TOOLNAME=sqanti3_RulesFilter.py
+    echo '#!/bin/bash' >> /usr/local/bin/$TOOLNAME && \
+    echo "source $CONDA_DIR/etc/profile.d/conda.sh" >> /usr/local/bin/$TOOLNAME && \
+    echo "conda activate /env/$APPNAME" >> /usr/local/bin/$TOOLNAME  && \
+    echo "export PYTHONPATH=$PYTHONPATH:$APPS_HOME/$APPNAME/cDNA_Cupcake/sequence/" >> /usr/local/bin/$TOOLNAME  && \
+    echo "$APPS_HOME/$APPNAME/$TOOLNAME \"\$@\"" >> /usr/local/bin/$TOOLNAME  && \
+    chmod 755 /usr/local/bin/$TOOLNAME
+
+    apt clean
+
+%test
+    #!/bin/bash
+
+    sqanti3_RulesFilter.py -h > /dev/null 2>&1
+    EXIT_CODE_SQFILTER=$?
+
+    sqanti3_qc.py -h > /dev/null 2>&1
+    EXIT_CODE_SQQC=$?
+
+    if [ $EXIT_CODE_SQFILTER -eq 0 ]  && [ $EXIT_CODE_SQQC -eq 0 ]; then
+        echo "TEST: OK"
+    elif [ $EXIT_CODE_SQFILTER -ne 0 ] && [ $EXIT_CODE_SQQC -eq 0 ]; then
+        echo "TEST: NOT OK: Cannot execute sqanti3_RulesFilter.py"
+        exit 1
+    elif [ $EXIT_CODE_SQFILTER -eq 0 ] && [ $EXIT_CODE_SQQC -ne 0 ]; then
+        echo "TEST: NOT OK: Cannot execute sqanti3_qc.py"
+        exit 1
+    elif [ $EXIT_CODE_SQFILTER -ne 0 ] && [ $EXIT_CODE_SQQC -ne 0 ]; then
+        echo "TEST: NOT OK: Cannot execute sqanti3_RulesFilter.py" and sqanti3_qc.py"
+        exit 1
+    else
+        echo "I Shouldn t be here ......
+        exit 1
+    fi
+
+
+#%runscript
+#    echo "Container was created $BUILD_DATE"
+#    echo "Arguments received: $*"
+#    exec echo "$@"
+
+%labels
+    Author Sebastien Guizard (Based on https://github.com/joelnitta/sqanti3-docker/commits/main)
+    OS Debian Buster
+    PROG SQANTI3
+    Version v1.6
+
+%help
+    echo "Container was created $BUILD_DATE"
+    This container hasbeen built from the miniconda3 docker image. 
+    SQANTI3 v1.6 has been installed using conda. 
+    
+    Two wrapper scripts have been creating for using SQANTI3 python programs: 
+        - sqanti3_qc.py
+        - sqanti3_RulesFilter.py
+
+    eg. singularity exec sqanti3_1.6.sif sqanti3_qc.py -h
+
