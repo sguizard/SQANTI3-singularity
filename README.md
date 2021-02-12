@@ -2,7 +2,9 @@
 A definition file for building SQANTI3 singularity container (adapted from [joelnitta/sqanti3-docker](https://github.com/joelnitta/sqanti3-docker))
 
 ## Building container
-`sudo singularity build sqanti3_1.6.{sif, def}`
+```
+sudo singularity build sqanti3_1.6.{sif, def}
+```
 
 ## Using SQANTI3
 There are two main Python scripts in SQANTI3: sqanti3_qc.py and sqanti3_RulesFilter.py. 
