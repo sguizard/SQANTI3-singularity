@@ -24,7 +24,7 @@ Stage: build
     git checkout 806893d5ef8d26c6177fe3f34a1ad7c25724bf20
     conda update -y --name base --channel defaults conda
     conda env create --prefix $ENV_PREFIX --file $APPS_HOME/$APPNAME/$APPNAME.conda_env.yml --force
-    conda clean --all --yes 
+    conda clean --all --yes
 
     wget http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/gtfToGenePred -P $APPS_HOME/$APPNAME/utilities/
     chmod +x $APPS_HOME/$APPNAME/utilities/gtfToGenePred
@@ -105,13 +105,11 @@ Stage: build
     Version v1.6
 
 %help
-    echo "Container was created $BUILD_DATE"
-    This container hasbeen built from the miniconda3 docker image. 
-    SQANTI3 v1.6 has been installed using conda. 
-    
-    Two wrapper scripts have been creating for using SQANTI3 python programs: 
+    This container hasbeen built from the miniconda3 docker image.
+    SQANTI3 v1.6 has been installed using conda.
+
+    Two wrapper scripts have been creating for using SQANTI3 python programs:
         - sqanti3_qc.py
         - sqanti3_RulesFilter.py
 
     eg. singularity exec sqanti3_1.6.sif sqanti3_qc.py -h
-
